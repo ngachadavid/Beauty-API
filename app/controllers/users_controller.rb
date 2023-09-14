@@ -1,70 +1,40 @@
 class UsersController < ApplicationController
-  before_action :set_user, only: %i[ show edit update destroy ]
+  before_action :session_expired?, only: [:check_login_status]
 
-  # GET /users or /users.json
-  def index
-    @users = User.all
-  end
-
-  # GET /users/1 or /users/1.json
-  def show
-  end
-
-  # GET /users/new
-  def new
-    @user = User.new
-  end
-
-  # GET /users/1/edit
-  def edit
-  end
-
-  # POST /users or /users.json
-  def create
-    @user = User.new(user_params)
-
-    respond_to do |format|
-      if @user.save
-        format.html { redirect_to user_url(@user), notice: "User was successfully created." }
-        format.json { render :show, status: :created, location: @user }
+  def register
+      user = User.create(user_params)
+      if user.valid?
+          save_user(user.id)
+          app_response(message: 'Registration was successful', status: :created, data: user)
       else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @user.errors, status: :unprocessable_entity }
+          app_response(message: 'Something went wrong during registration', status: :unprocessable_entity, data: user.errors)
       end
-    end
   end
 
-  # PATCH/PUT /users/1 or /users/1.json
-  def update
-    respond_to do |format|
-      if @user.update(user_params)
-        format.html { redirect_to user_url(@user), notice: "User was successfully updated." }
-        format.json { render :show, status: :ok, location: @user }
+
+  def login
+      sql = "username = :username OR email = :email"
+      user = User.where(sql, { username: user_params[:username], email: user_params[:email] }).first
+      if user&.authenticate(user_params[:password])
+          save_user(user.id)
+          token = encode(user.id, user.email)
+          app_response(message: 'Login was successful', status: :ok, data: {user: user, token: token})
       else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @user.errors, status: :unprocessable_entity }
+          app_response(message: 'Invalid username/email or password', status: :unauthorized)
       end
-    end
   end
 
-  # DELETE /users/1 or /users/1.json
-  def destroy
-    @user.destroy
-
-    respond_to do |format|
-      format.html { redirect_to users_url, notice: "User was successfully destroyed." }
-      format.json { head :no_content }
-    end
+  
+  def logout
+      remove_user
+      app_response(message: 'Logout successful')
   end
 
-  private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_user
-      @user = User.find(params[:id])
-    end
-
-    # Only allow a list of trusted parameters through.
+    private
     def user_params
-      params.require(:user).permit(:username, :email, :password_digest)
+      params.permit(:username, :email, :password)
+      # params.permit(:username, :email, :password)
+      # params.require(:user).permit( :password,  :username,  :email)
     end
 end
+
